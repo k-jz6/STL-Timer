@@ -1,0 +1,337 @@
+:root {
+    --primary-color: #0056b3;
+    --bg-color: #f8f9fa;
+    --border-color: #ccc;
+    --text-color: #333;
+    --input-height: 28px;
+    /* 統一する矢印アイコン */
+    --select-arrow: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 16 16'%3E%3Cpath fill='%23555' d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+}
+
+body {
+    font-family: "Meiryo", "Yu Gothic", sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+button {
+    cursor: pointer;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 0 12px;
+    height: var(--input-height);
+    font-size: 13px;
+    line-height: 1;
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.btn-primary:hover {
+    opacity: 0.9;
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+    color: white;
+    border: 1px solid #5a6268;
+}
+
+.timer-widget {
+    width: 100%;
+    height: 100%;
+    background: white;
+    display: flex;
+    flex-direction: column;
+    padding: 4px 8px;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+@media (display-mode: picture-in-picture) {
+    body {
+        margin: 0;
+        background: white;
+    }
+
+    .timer-widget {
+        width: 100vw;
+        height: 100vh;
+    }
+}
+
+.widget-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    width: 100%;
+}
+
+.widget-row.top-row {
+    margin-bottom: 4px;
+}
+
+.widget-row.bottom-row {
+    justify-content: flex-end;
+}
+
+.timer-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* === 入力・プルダウン共通デザイン === */
+.unified-input {
+    height: var(--input-height);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    padding: 0 5px;
+    font-size: 13px;
+    box-sizing: border-box;
+    vertical-align: middle;
+}
+
+/* プルダウンの矢印共通設定 */
+.custom-select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: var(--select-arrow);
+    background-repeat: no-repeat;
+    background-color: #fff;
+    cursor: pointer;
+}
+
+/* 1. 分類プルダウン（左側） */
+.category-input {
+    width: 90px;
+    padding-right: 20px;
+    background-position: right 4px center;
+}
+
+#category-select {
+    display: none;
+}
+
+
+/* 2. タスク入力グループ（入力欄＋履歴ボタン） */
+.task-input-group {
+    display: flex;
+    flex-grow: 1;
+    align-items: center;
+}
+
+/* テキスト入力部分 */
+.task-input-text {
+    flex-grow: 1;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    border-right: none;
+    /* 右枠線を消してボタンと結合 */
+}
+
+/* ★★★ 修正箇所 ★★★ */
+.task-select-btn {
+    width: 26px;
+    padding: 0;
+
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    border-left: none;
+    /* 【修正1】左の枠線を消して一体化 */
+
+    background-color: #fff;
+    background-position: center center;
+
+    /* 【修正2】文字色を通常に戻す（透明だとドロップダウンリストまで見えなくなるため） */
+    color: var(--text-color);
+    text-indent: 0;
+}
+
+.task-select-btn:hover {
+    background-color: #f8f8f8;
+}
+
+/* フォーカス時の見栄え調整 */
+.task-input-text:focus {
+    z-index: 2;
+    position: relative;
+    border-color: #80bdff;
+    outline: none;
+}
+
+.task-select-btn:focus {
+    z-index: 1;
+    position: relative;
+    border-color: #80bdff;
+    outline: none;
+}
+
+
+/* その他UI */
+#menu-btn {
+    background: none;
+    color: #666;
+    font-size: 20px;
+    padding: 0 5px;
+    border: none;
+    line-height: var(--input-height);
+}
+
+#menu-btn:hover {
+    color: #333;
+}
+
+#timer-display {
+    font-family: monospace;
+    font-size: 18px;
+    font-weight: bold;
+    color: var(--text-color);
+    line-height: 1;
+}
+
+.hidden-in-dashboard {
+    display: none;
+}
+
+.dashboard-container {
+    max-width: 900px;
+    margin: 20px auto;
+    padding: 20px;
+    background: white;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+.ad-space {
+    width: 100%;
+    height: 60px;
+    background: #f0f0f0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 20px;
+    color: #999;
+}
+
+.setting-group {
+    background: #fdfdfd;
+    border: 1px solid #eee;
+    padding: 15px;
+    margin-bottom: 15px;
+    border-radius: 4px;
+}
+
+.setting-group h3 {
+    margin-top: 0;
+    font-size: 16px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 5px;
+}
+
+.desc-text {
+    font-size: 12px;
+    color: #666;
+    margin: 5px 0 10px 0;
+}
+
+.input-row {
+    display: flex;
+    gap: 5px;
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+.tag-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.tag-list li {
+    background: #eee;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    border: 1px solid #ddd;
+}
+
+.delete-btn {
+    cursor: pointer;
+    color: #888;
+    font-weight: bold;
+    border: none;
+    background: none;
+    padding: 0;
+}
+
+.delete-btn:hover {
+    color: red;
+}
+
+.history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.history-header h2 {
+    margin: 0;
+}
+
+#sort-toggle-btn {
+    font-size: 12px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+th,
+td {
+    border: 1px solid #ddd;
+    padding: 6px 8px;
+    text-align: left;
+}
+
+th {
+    background-color: #f1f3f5;
+}
+
+.table-wrapper {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.csv-order-settings {
+    margin-top: 10px;
+}
+
+#csv-order {
+    width: 100%;
+}

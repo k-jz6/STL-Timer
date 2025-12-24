@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stealth Timer</title>
+    <link rel="apple-touch-icon" href="https://via.placeholder.com/192.png?text=Icon">
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+</head>
+
+<body>
+
+    <div id="timer-widget-container" class="hidden-in-dashboard">
+        <div class="timer-widget">
+            <div class="widget-row top-row">
+                <select id="category-select" class="unified-input category-input custom-select" aria-label="分類選択">
+                    <option value="">未分類</option>
+                </select>
+
+                <div class="task-input-group">
+                    <input type="text" id="task-input" class="unified-input task-input-text" placeholder="何をする？"
+                        autocomplete="off" aria-label="タスク内容">
+                    <select id="task-history-select" class="unified-input task-select-btn custom-select"
+                        aria-label="履歴から選択">
+                        <option value="" disabled selected></option>
+                    </select>
+                </div>
+
+                <button id="menu-btn" title="設定画面を開く" aria-label="メニュー">≡</button>
+            </div>
+            <div class="widget-row bottom-row">
+                <div class="timer-controls">
+                    <div id="timer-display">00:00:00</div>
+                    <button id="toggle-btn" class="btn-primary">開始</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="dashboard-container">
+        <header>
+            <h1>業務タイマー管理</h1>
+            <div class="header-controls">
+                <button id="launch-pip-btn" class="btn-primary">ウィジェット起動 (PiP)</button>
+            </div>
+        </header>
+
+        <main>
+            <div class="ad-space">
+                <small>スポンサーリンク</small>
+            </div>
+
+            <section class="settings-panel">
+                <h2>設定</h2>
+
+                <div class="setting-group">
+                    <h3>分類設定 (カテゴリ)</h3>
+                    <label>
+                        <input type="checkbox" id="show-category-chk"> タイマー画面で分類を選択可能にする
+                    </label>
+                    <div class="input-row">
+                        <input type="text" id="new-category" placeholder="新しい分類名" class="unified-input"
+                            aria-label="新しい分類名">
+                        <button id="add-category-btn" class="btn-secondary">追加</button>
+                    </div>
+                    <ul id="category-list-display" class="tag-list"></ul>
+                </div>
+
+                <div class="setting-group">
+                    <h3>内容履歴の管理 (「何をする」の履歴)</h3>
+                    <p class="desc-text">過去に入力した「何をする」の内容をここから削除できます。</p>
+                    <div id="task-manager-area">
+                        <ul id="task-list-display" class="tag-list"></ul>
+                    </div>
+                </div>
+
+                <div class="setting-group">
+                    <h3>データ出力・バックアップ</h3>
+                    <div class="row">
+                        <button id="manual-backup-btn" class="btn-secondary">JSONバックアップ</button>
+                        <button id="csv-export-btn" class="btn-secondary">CSVダウンロード</button>
+                    </div>
+                    <div class="csv-order-settings">
+                        <label for="csv-order">CSV出力項目順序:</label>
+                        <input type="text" id="csv-order" value="開始時間,終了時間,経過時間,分類,内容" class="unified-input">
+                    </div>
+                </div>
+            </section>
+
+            <section class="history-panel">
+                <div class="history-header">
+                    <h2>作業履歴</h2>
+                    <button id="sort-toggle-btn" class="btn-secondary">▼ 新しい順</button>
+                </div>
+                <div class="table-wrapper">
+                    <table id="history-table">
+                        <thead>
+                            <tr>
+                                <th>開始時間</th>
+                                <th>終了時間</th>
+                                <th>経過時間</th>
+                                <th>分類</th>
+                                <th>内容</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

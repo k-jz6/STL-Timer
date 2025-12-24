@@ -1,0 +1,15 @@
+{
+    "name": "Stealth Work Timer",
+    "short_name": "Timer",
+    "start_url": "./index.html",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#0056b3",
+    "icons": [
+        {
+            "src": "https://via.placeholder.com/192.png?text=Icon",
+            "sizes": "192x192",
+            "type": "image/png"
+        }
+    ]
+}
