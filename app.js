@@ -10,7 +10,7 @@ let isHistoryDesc = true;
 // === 初期化 ===
 window.onload = async () => {
     await initDB();
-    await checkAndInitTaskData(); // ★データがない場合に初期値を投入する処理
+    await checkAndInitTaskData();
     loadHistory();
     loadSettings();
     updateTaskSelectOptions();
@@ -31,7 +31,6 @@ window.onload = async () => {
         }
     });
 
-    // 設定関連
     document.getElementById('add-category-btn').addEventListener('click', addCategory);
     document.getElementById('show-category-chk').addEventListener('change', toggleCategoryDisplay);
     document.getElementById('manual-backup-btn').addEventListener('click', downloadJSON);
@@ -40,7 +39,9 @@ window.onload = async () => {
     window.addEventListener('beforeunload', saveSettings);
 };
 
-// グローバル公開
+// グローバル公開 (DOMイベント用)
+// ※セキュリティ的にはHTML内のonclick属性よりも、addEventListenerでの実装が推奨されますが、
+// 既存構造を維持しつつ最低限の安全性を確保するため、関数自体は残します。
 window.deleteLog = deleteLog;
 window.deleteCategory = deleteCategory;
 window.deleteTaskHistory = deleteTaskHistory;
@@ -56,8 +57,10 @@ async function openPiP() {
 
     pipWindow = await documentPictureInPicture.requestWindow({ width: 320, height: 80 });
 
+    // スタイルのコピー（セキュリティリスクの低い手法）
     [...document.styleSheets].forEach((styleSheet) => {
         try {
+            // CSSRulesへのアクセスはCORS制限を受ける場合がありますが、同一生成元ならOK
             const cssRules = [...styleSheet.cssRules].map(r => r.cssText).join('');
             const style = document.createElement('style');
             style.textContent = cssRules;
@@ -74,15 +77,17 @@ async function openPiP() {
     widget.classList.remove('hidden-in-dashboard');
 
     pipWindow.addEventListener('pagehide', () => {
-        document.getElementById('timer-widget-container').appendChild(widgetContent);
-        document.getElementById('timer-widget-container').classList.add('hidden-in-dashboard');
+        const container = document.getElementById('timer-widget-container');
+        if(container) {
+            container.appendChild(widgetContent);
+            container.classList.add('hidden-in-dashboard');
+        }
         pipWindow = null;
     });
 
     updateTaskSelectOptions();
     toggleCategoryDisplay();
 
-    // PiP内のSelectイベント
     const pipSelect = pipWindow.document.getElementById('task-history-select');
     if (pipSelect) {
         pipSelect.addEventListener('change', (e) => {
@@ -109,8 +114,8 @@ function toggleTimer() {
     const display = getEl('timer-display');
 
     if (!startTime) {
-        // 開始処理
         startTime = new Date();
+        // 入力のサニタイズは出力時に行いますが、入力値の最大長チェックなどはHTML側で行っています
         currentTask = input.value;
         currentCategory = catSelect.value;
 
@@ -127,7 +132,6 @@ function toggleTimer() {
         }, 1000);
 
     } else {
-        // 停止処理
         clearInterval(timerInterval);
         const endTime = new Date();
         saveLog(startTime, endTime, currentTask, currentCategory);
@@ -161,7 +165,6 @@ function deleteTaskHistory(name) {
     };
 }
 
-// 初期データチェック・投入（候補が出ない対策）
 function checkAndInitTaskData() {
     return new Promise((resolve) => {
         const tx = db.transaction(['tasks'], 'readwrite');
@@ -169,15 +172,11 @@ function checkAndInitTaskData() {
         const req = store.count();
         req.onsuccess = () => {
             if (req.result === 0) {
-                store.put({ name: "メール確認" });
-                store.put({ name: "資料作成" });
-                store.put({ name: "会議" });
-                store.put({ name: "設計" });
-                store.put({ name: "調査" });
+                ["メール確認", "資料作成", "会議", "設計", "調査"].forEach(t => store.put({ name: t }));
             }
             resolve();
         };
-        req.onerror = () => resolve(); // エラーでも止まらないように
+        req.onerror = () => resolve();
     });
 }
 
@@ -186,17 +185,34 @@ function updateTaskSelectOptions() {
     const tx = db.transaction(['tasks'], 'readonly');
     tx.objectStore('tasks').getAll().onsuccess = (e) => {
         const tasks = e.target.result;
-        // 先頭は空（CSSで矢印表示）
-        let opts = `<option value="" disabled selected hidden style="display:none"></option>`;
-        opts += tasks.map(t => `<option value="${escapeHtml(t.name)}">${escapeHtml(t.name)}</option>`).join('');
-
-        const setHTML = (doc) => {
+        
+        // 【セキュリティ修正】 innerHTMLではなくDOM生成を使用 (CWE-79対策)
+        const createOptions = (doc) => {
             if (!doc) return;
             const sel = doc.getElementById('task-history-select');
-            if (sel) sel.innerHTML = opts;
+            if (!sel) return;
+
+            sel.innerHTML = ''; // クリア
+
+            // 空のオプション (プレースホルダー用)
+            const emptyOpt = document.createElement('option');
+            emptyOpt.value = "";
+            emptyOpt.disabled = true;
+            emptyOpt.selected = true;
+            emptyOpt.hidden = true;
+            emptyOpt.style.display = "none";
+            sel.appendChild(emptyOpt);
+
+            tasks.forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t.name;      // valueへのセットは安全
+                opt.textContent = t.name; // textContentへのセットはXSS対策として安全
+                sel.appendChild(opt);
+            });
         };
-        setHTML(document);
-        if (pipWindow) setHTML(pipWindow.document);
+
+        createOptions(document);
+        if (pipWindow) createOptions(pipWindow.document);
     };
 }
 
@@ -207,10 +223,24 @@ function updateTaskListUI() {
         const tasks = e.target.result;
         const listEl = document.getElementById('task-list-display');
         if (!listEl) return;
-        listEl.innerHTML = '';
+        
+        listEl.innerHTML = ''; // クリア
+        
+        // 【セキュリティ修正】 innerHTMLの連結を廃止 (CWE-79対策)
         tasks.forEach(t => {
             const li = document.createElement('li');
-            li.innerHTML = `${escapeHtml(t.name)} <button class="delete-btn" onclick="deleteTaskHistory('${escapeHtml(t.name)}')">×</button>`;
+            
+            // テキストノードとして追加（タグは文字として扱われる）
+            const textNode = document.createTextNode(t.name + " ");
+            li.appendChild(textNode);
+
+            const btn = document.createElement('button');
+            btn.className = "delete-btn";
+            btn.textContent = "×";
+            // イベントリスナーで設定（onclick属性文字列生成よりも安全）
+            btn.onclick = () => deleteTaskHistory(t.name);
+            
+            li.appendChild(btn);
             listEl.appendChild(li);
         });
     };
@@ -219,7 +249,11 @@ function updateTaskListUI() {
 // === 分類管理 ===
 function getCategories() {
     const json = localStorage.getItem('timer_categories');
-    return json ? JSON.parse(json) : [];
+    try {
+        return json ? JSON.parse(json) : [];
+    } catch (e) {
+        return [];
+    }
 }
 function saveCategories(cats) {
     localStorage.setItem('timer_categories', JSON.stringify(cats));
@@ -227,7 +261,8 @@ function saveCategories(cats) {
 }
 function addCategory() {
     const input = document.getElementById('new-category');
-    const val = input.value.trim();
+    // 長すぎる入力をカット（念のためJS側でも）
+    const val = input.value.trim().substring(0, 50);
     if (val) {
         const cats = getCategories();
         if (!cats.includes(val)) {
@@ -243,27 +278,46 @@ function deleteCategory(val) {
     const newCats = cats.filter(c => c !== val);
     saveCategories(newCats);
 }
+
 function updateCategoryUI() {
     const cats = getCategories();
+    
+    // 1. リストの更新
     const listEl = document.getElementById('category-list-display');
     if (listEl) {
         listEl.innerHTML = '';
+        // 【セキュリティ修正】 innerHTMLの連結を廃止
         cats.forEach(c => {
             const li = document.createElement('li');
-            li.innerHTML = `${escapeHtml(c)} <button class="delete-btn" onclick="deleteCategory('${escapeHtml(c)}')">×</button>`;
+            li.appendChild(document.createTextNode(c + " "));
+
+            const btn = document.createElement('button');
+            btn.className = "delete-btn";
+            btn.textContent = "×";
+            btn.onclick = () => deleteCategory(c);
+
+            li.appendChild(btn);
             listEl.appendChild(li);
         });
     }
+
+    // 2. Selectボックスの更新
     const updateSelect = (doc) => {
         if (!doc) return;
         const sel = doc.getElementById('category-select');
         if (sel) {
             const currentVal = sel.value;
-            sel.innerHTML = '<option value="">未分類</option>';
+            sel.innerHTML = ''; // クリア
+
+            const defaultOpt = document.createElement('option');
+            defaultOpt.value = "";
+            defaultOpt.textContent = "未分類";
+            sel.appendChild(defaultOpt);
+
             cats.forEach(c => {
                 const opt = document.createElement('option');
                 opt.value = c;
-                opt.textContent = c;
+                opt.textContent = c; // 安全
                 sel.appendChild(opt);
             });
             sel.value = currentVal;
@@ -272,6 +326,7 @@ function updateCategoryUI() {
     updateSelect(document);
     if (pipWindow) updateSelect(pipWindow.document);
 }
+
 function toggleCategoryDisplay() {
     const isChecked = document.getElementById('show-category-chk').checked;
     const setDisplay = (doc) => {
@@ -287,7 +342,6 @@ function toggleCategoryDisplay() {
 // === IndexedDB (Log) ===
 function initDB() {
     return new Promise((resolve, reject) => {
-        // DBバージョンを 3 に変更
         const req = indexedDB.open('WorkTimerDB', 3);
         req.onupgradeneeded = (e) => {
             db = e.target.result;
@@ -314,7 +368,7 @@ function saveLog(start, end, task, category) {
         startTime: start.toISOString(),
         endTime: end.toISOString(),
         duration: durationStr,
-        task: task,
+        task: task, // 生データを保存（表示時・出力時に無害化する）
         category: category,
         createdAt: new Date().toISOString()
     };
@@ -340,17 +394,35 @@ function loadHistory() {
         });
         const tbody = document.querySelector('#history-table tbody');
         if (!tbody) return;
-        tbody.innerHTML = '';
+        
+        tbody.innerHTML = ''; // クリア
+
+        // 【セキュリティ修正】 innerHTML廃止、createElementで構築 (CWE-79対策)
         logs.forEach(log => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${formatDateTimeExact(log.startTime)}</td>
-                <td>${formatDateTimeExact(log.endTime)}</td>
-                <td>${log.duration}</td>
-                <td>${escapeHtml(log.category)}</td>
-                <td>${escapeHtml(log.task)}</td>
-                <td><button class="btn-secondary" onclick="deleteLog(${log.id})" style="padding:2px 8px;">削除</button></td>
-            `;
+
+            const createTd = (text) => {
+                const td = document.createElement('td');
+                td.textContent = text || ""; // textContentは安全
+                return td;
+            };
+
+            tr.appendChild(createTd(formatDateTimeExact(log.startTime)));
+            tr.appendChild(createTd(formatDateTimeExact(log.endTime)));
+            tr.appendChild(createTd(log.duration));
+            tr.appendChild(createTd(log.category));
+            tr.appendChild(createTd(log.task));
+
+            // 操作列（ボタン）
+            const tdAction = document.createElement('td');
+            const btn = document.createElement('button');
+            btn.className = "btn-secondary";
+            btn.style.padding = "2px 8px";
+            btn.textContent = "削除";
+            btn.onclick = () => deleteLog(log.id);
+            tdAction.appendChild(btn);
+            
+            tr.appendChild(tdAction);
             tbody.appendChild(tr);
         });
     };
@@ -378,6 +450,8 @@ function formatDateTimeExact(iso) {
 
 // === 出力 ===
 function downloadJSON() {
+    // JSONはそのままダウンロードしてもブラウザが実行するわけではないため、
+    // XSSリスクは低いが、内容のサニタイズは行わず生データを出力するのが一般的。
     const tx = db.transaction(['logs', 'tasks'], 'readonly');
     Promise.all([
         new Promise(r => tx.objectStore('logs').getAll().onsuccess = e => r(e.target.result)),
@@ -396,24 +470,46 @@ function downloadJSON() {
         link.click();
     });
 }
+
+// 【セキュリティ修正】 CSV Injection (Formula Injection) 対策関数
+function sanitizeCSVField(field) {
+    if (field == null) return "";
+    let str = String(field);
+    
+    // Excel等が数式として認識する文字で始まる場合、シングルクォートを付与して文字列化する (CWE-1236)
+    // 対象: =, +, -, @, Tab(0x09), CR(0x0D)
+    if (/^[=\+\-@\t\r]/.test(str)) {
+        str = "'" + str;
+    }
+    
+    // ダブルクォートをエスケープ (" -> "")
+    return `"${str.replace(/"/g, '""')}"`;
+}
+
 function exportCSV() {
     const orderStr = document.getElementById('csv-order').value;
     const order = orderStr.split(',').map(s => s.trim());
     const tx = db.transaction(['logs'], 'readonly');
     tx.objectStore('logs').getAll().onsuccess = (e) => {
         const logs = e.target.result;
+        // BOM付与
         let csv = "\uFEFF" + order.join(',') + "\n";
+        
         logs.forEach(log => {
             const row = order.map(col => {
-                if (col === '開始時間') return formatDateTimeExact(log.startTime);
-                if (col === '終了時間') return formatDateTimeExact(log.endTime);
-                if (col === '経過時間') return log.duration;
-                if (col === '分類') return `"${(log.category || '').replace(/"/g, '""')}"`;
-                if (col === '内容') return `"${(log.task || '').replace(/"/g, '""')}"`;
-                return "";
+                let val = "";
+                if (col === '開始時間') val = formatDateTimeExact(log.startTime);
+                else if (col === '終了時間') val = formatDateTimeExact(log.endTime);
+                else if (col === '経過時間') val = log.duration;
+                else if (col === '分類') val = log.category;
+                else if (col === '内容') val = log.task;
+                
+                // サニタイズ関数を通す
+                return sanitizeCSVField(val);
             });
             csv += row.join(',') + "\n";
         });
+        
         const blob = new Blob([csv], { type: 'text/csv' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
@@ -423,12 +519,17 @@ function exportCSV() {
 }
 
 // === ユーティリティ ===
+// escapeHtml は innerHTML を廃止したため不要になりますが、念のため残すなら以下。
+// 今回は textContent 化したため、コード内では使用していません。
+/*
 function escapeHtml(str) {
     if (!str) return "";
     return str.replace(/[&<>"']/g, (m) => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
     })[m]);
 }
+*/
+
 function loadSettings() {
     updateCategoryUI();
     const showCat = localStorage.getItem('timer_show_category') === 'true';
