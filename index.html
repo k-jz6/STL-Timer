@@ -5,6 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>STL-timer</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https://via.placeholder.com data:; script-src 'self';">
+    
     <link rel="apple-touch-icon" href="https://via.placeholder.com/192.png?text=Icon">
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
@@ -21,7 +23,7 @@
 
                 <div class="task-input-group">
                     <input type="text" id="task-input" class="unified-input task-input-text" placeholder="何をする？"
-                        autocomplete="off" aria-label="タスク内容">
+                        autocomplete="off" aria-label="タスク内容" maxlength="100">
                     <select id="task-history-select" class="unified-input task-select-btn custom-select"
                         aria-label="履歴から選択">
                         <option value="" disabled selected></option>
@@ -61,7 +63,7 @@
                     </label>
                     <div class="input-row">
                         <input type="text" id="new-category" placeholder="新しい分類名" class="unified-input"
-                            aria-label="新しい分類名">
+                            aria-label="新しい分類名" maxlength="30">
                         <button id="add-category-btn" class="btn-secondary">追加</button>
                     </div>
                     <ul id="category-list-display" class="tag-list"></ul>
@@ -83,7 +85,7 @@
                     </div>
                     <div class="csv-order-settings">
                         <label for="csv-order">CSV出力項目順序:</label>
-                        <input type="text" id="csv-order" value="開始時間,終了時間,経過時間,分類,内容" class="unified-input">
+                        <input type="text" id="csv-order" value="開始時間,終了時間,経過時間,分類,内容" class="unified-input" maxlength="100">
                     </div>
                 </div>
             </section>

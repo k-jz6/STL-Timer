@@ -10,7 +10,7 @@ let isHistoryDesc = true;
 // === 初期化 ===
 window.onload = async () => {
     await initDB();
-    await checkAndInitTaskData(); // ★データがない場合に初期値を投入する処理
+    await checkAndInitTaskData();
     loadHistory();
     loadSettings();
     updateTaskSelectOptions();
@@ -27,11 +27,11 @@ window.onload = async () => {
         const input = document.getElementById('task-input');
         if (e.target.value) {
             input.value = e.target.value;
+            // 選択後はプルダウンをリセット（空にする）して、連続選択しやすくする
             e.target.value = "";
         }
     });
 
-    // 設定関連
     document.getElementById('add-category-btn').addEventListener('click', addCategory);
     document.getElementById('show-category-chk').addEventListener('change', toggleCategoryDisplay);
     document.getElementById('manual-backup-btn').addEventListener('click', downloadJSON);
@@ -40,7 +40,7 @@ window.onload = async () => {
     window.addEventListener('beforeunload', saveSettings);
 };
 
-// グローバル公開
+// グローバル公開 (DOMイベント用)
 window.deleteLog = deleteLog;
 window.deleteCategory = deleteCategory;
 window.deleteTaskHistory = deleteTaskHistory;
@@ -56,6 +56,7 @@ async function openPiP() {
 
     pipWindow = await documentPictureInPicture.requestWindow({ width: 320, height: 80 });
 
+    // スタイルのコピー
     [...document.styleSheets].forEach((styleSheet) => {
         try {
             const cssRules = [...styleSheet.cssRules].map(r => r.cssText).join('');
@@ -74,15 +75,17 @@ async function openPiP() {
     widget.classList.remove('hidden-in-dashboard');
 
     pipWindow.addEventListener('pagehide', () => {
-        document.getElementById('timer-widget-container').appendChild(widgetContent);
-        document.getElementById('timer-widget-container').classList.add('hidden-in-dashboard');
+        const container = document.getElementById('timer-widget-container');
+        if(container) {
+            container.appendChild(widgetContent);
+            container.classList.add('hidden-in-dashboard');
+        }
         pipWindow = null;
     });
 
     updateTaskSelectOptions();
     toggleCategoryDisplay();
 
-    // PiP内のSelectイベント
     const pipSelect = pipWindow.document.getElementById('task-history-select');
     if (pipSelect) {
         pipSelect.addEventListener('change', (e) => {
@@ -109,7 +112,6 @@ function toggleTimer() {
     const display = getEl('timer-display');
 
     if (!startTime) {
-        // 開始処理
         startTime = new Date();
         currentTask = input.value;
         currentCategory = catSelect.value;
@@ -127,7 +129,6 @@ function toggleTimer() {
         }, 1000);
 
     } else {
-        // 停止処理
         clearInterval(timerInterval);
         const endTime = new Date();
         saveLog(startTime, endTime, currentTask, currentCategory);
@@ -161,7 +162,6 @@ function deleteTaskHistory(name) {
     };
 }
 
-// 初期データチェック・投入（候補が出ない対策）
 function checkAndInitTaskData() {
     return new Promise((resolve) => {
         const tx = db.transaction(['tasks'], 'readwrite');
@@ -169,15 +169,11 @@ function checkAndInitTaskData() {
         const req = store.count();
         req.onsuccess = () => {
             if (req.result === 0) {
-                store.put({ name: "メール確認" });
-                store.put({ name: "資料作成" });
-                store.put({ name: "会議" });
-                store.put({ name: "設計" });
-                store.put({ name: "調査" });
+                ["メール確認", "資料作成", "会議", "設計", "調査"].forEach(t => store.put({ name: t }));
             }
             resolve();
         };
-        req.onerror = () => resolve(); // エラーでも止まらないように
+        req.onerror = () => resolve();
     });
 }
 
@@ -186,17 +182,39 @@ function updateTaskSelectOptions() {
     const tx = db.transaction(['tasks'], 'readonly');
     tx.objectStore('tasks').getAll().onsuccess = (e) => {
         const tasks = e.target.result;
-        // 先頭は空（CSSで矢印表示）
-        let opts = `<option value="" disabled selected hidden style="display:none"></option>`;
-        opts += tasks.map(t => `<option value="${escapeHtml(t.name)}">${escapeHtml(t.name)}</option>`).join('');
-
-        const setHTML = (doc) => {
+        
+        const createOptions = (doc) => {
             if (!doc) return;
             const sel = doc.getElementById('task-history-select');
-            if (sel) sel.innerHTML = opts;
+            if (!sel) return;
+
+            sel.innerHTML = ''; // クリア
+
+            const emptyOpt = document.createElement('option');
+            emptyOpt.value = "";
+            emptyOpt.disabled = true;
+            emptyOpt.selected = true;
+            emptyOpt.hidden = true;
+            emptyOpt.style.display = "none";
+            sel.appendChild(emptyOpt);
+
+            tasks.forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t.name;      
+                
+                // タスク履歴の表示文字数制限
+                let displayText = t.name;
+                if (displayText.length > 23) {
+                    displayText = displayText.substring(0, 23) + "…";
+                }
+                opt.textContent = displayText;
+                
+                sel.appendChild(opt);
+            });
         };
-        setHTML(document);
-        if (pipWindow) setHTML(pipWindow.document);
+
+        createOptions(document);
+        if (pipWindow) createOptions(pipWindow.document);
     };
 }
 
@@ -207,10 +225,20 @@ function updateTaskListUI() {
         const tasks = e.target.result;
         const listEl = document.getElementById('task-list-display');
         if (!listEl) return;
-        listEl.innerHTML = '';
+        
+        listEl.innerHTML = ''; // クリア
+        
         tasks.forEach(t => {
             const li = document.createElement('li');
-            li.innerHTML = `${escapeHtml(t.name)} <button class="delete-btn" onclick="deleteTaskHistory('${escapeHtml(t.name)}')">×</button>`;
+            const textNode = document.createTextNode(t.name + " ");
+            li.appendChild(textNode);
+
+            const btn = document.createElement('button');
+            btn.className = "delete-btn";
+            btn.textContent = "×";
+            btn.onclick = () => deleteTaskHistory(t.name);
+            
+            li.appendChild(btn);
             listEl.appendChild(li);
         });
     };
@@ -219,7 +247,11 @@ function updateTaskListUI() {
 // === 分類管理 ===
 function getCategories() {
     const json = localStorage.getItem('timer_categories');
-    return json ? JSON.parse(json) : [];
+    try {
+        return json ? JSON.parse(json) : [];
+    } catch (e) {
+        return [];
+    }
 }
 function saveCategories(cats) {
     localStorage.setItem('timer_categories', JSON.stringify(cats));
@@ -227,7 +259,8 @@ function saveCategories(cats) {
 }
 function addCategory() {
     const input = document.getElementById('new-category');
-    const val = input.value.trim();
+    // 長すぎる入力をカット（CWE-20対策）
+    const val = input.value.trim().substring(0, 50);
     if (val) {
         const cats = getCategories();
         if (!cats.includes(val)) {
@@ -243,27 +276,53 @@ function deleteCategory(val) {
     const newCats = cats.filter(c => c !== val);
     saveCategories(newCats);
 }
+
+// 【修正箇所】分類プルダウンも表示文字数を制限するよう変更
 function updateCategoryUI() {
     const cats = getCategories();
+    
+    // 1. 設定画面リストの更新
     const listEl = document.getElementById('category-list-display');
     if (listEl) {
         listEl.innerHTML = '';
         cats.forEach(c => {
             const li = document.createElement('li');
-            li.innerHTML = `${escapeHtml(c)} <button class="delete-btn" onclick="deleteCategory('${escapeHtml(c)}')">×</button>`;
+            li.appendChild(document.createTextNode(c + " "));
+
+            const btn = document.createElement('button');
+            btn.className = "delete-btn";
+            btn.textContent = "×";
+            btn.onclick = () => deleteCategory(c);
+
+            li.appendChild(btn);
             listEl.appendChild(li);
         });
     }
+
+    // 2. Selectボックスの更新（ここを修正）
     const updateSelect = (doc) => {
         if (!doc) return;
         const sel = doc.getElementById('category-select');
         if (sel) {
             const currentVal = sel.value;
-            sel.innerHTML = '<option value="">未分類</option>';
+            sel.innerHTML = ''; // クリア
+
+            const defaultOpt = document.createElement('option');
+            defaultOpt.value = "";
+            defaultOpt.textContent = "未分類";
+            sel.appendChild(defaultOpt);
+
             cats.forEach(c => {
                 const opt = document.createElement('option');
-                opt.value = c;
-                opt.textContent = c;
+                opt.value = c; // 値は完全なまま保持
+                
+                // 表示だけ15文字でカットして「…」をつける
+                let displayText = c;
+                if (displayText.length > 15) {
+                    displayText = displayText.substring(0, 15) + "…";
+                }
+                opt.textContent = displayText; 
+                
                 sel.appendChild(opt);
             });
             sel.value = currentVal;
@@ -272,6 +331,7 @@ function updateCategoryUI() {
     updateSelect(document);
     if (pipWindow) updateSelect(pipWindow.document);
 }
+
 function toggleCategoryDisplay() {
     const isChecked = document.getElementById('show-category-chk').checked;
     const setDisplay = (doc) => {
@@ -287,7 +347,6 @@ function toggleCategoryDisplay() {
 // === IndexedDB (Log) ===
 function initDB() {
     return new Promise((resolve, reject) => {
-        // DBバージョンを 3 に変更
         const req = indexedDB.open('WorkTimerDB', 3);
         req.onupgradeneeded = (e) => {
             db = e.target.result;
@@ -314,7 +373,7 @@ function saveLog(start, end, task, category) {
         startTime: start.toISOString(),
         endTime: end.toISOString(),
         duration: durationStr,
-        task: task,
+        task: task, 
         category: category,
         createdAt: new Date().toISOString()
     };
@@ -340,17 +399,33 @@ function loadHistory() {
         });
         const tbody = document.querySelector('#history-table tbody');
         if (!tbody) return;
-        tbody.innerHTML = '';
+        
+        tbody.innerHTML = ''; // クリア
+
         logs.forEach(log => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${formatDateTimeExact(log.startTime)}</td>
-                <td>${formatDateTimeExact(log.endTime)}</td>
-                <td>${log.duration}</td>
-                <td>${escapeHtml(log.category)}</td>
-                <td>${escapeHtml(log.task)}</td>
-                <td><button class="btn-secondary" onclick="deleteLog(${log.id})" style="padding:2px 8px;">削除</button></td>
-            `;
+
+            const createTd = (text) => {
+                const td = document.createElement('td');
+                td.textContent = text || "";
+                return td;
+            };
+
+            tr.appendChild(createTd(formatDateTimeExact(log.startTime)));
+            tr.appendChild(createTd(formatDateTimeExact(log.endTime)));
+            tr.appendChild(createTd(log.duration));
+            tr.appendChild(createTd(log.category));
+            tr.appendChild(createTd(log.task));
+
+            const tdAction = document.createElement('td');
+            const btn = document.createElement('button');
+            btn.className = "btn-secondary";
+            btn.style.padding = "2px 8px";
+            btn.textContent = "削除";
+            btn.onclick = () => deleteLog(log.id);
+            tdAction.appendChild(btn);
+            
+            tr.appendChild(tdAction);
             tbody.appendChild(tr);
         });
     };
@@ -396,6 +471,19 @@ function downloadJSON() {
         link.click();
     });
 }
+
+// CSV Injection (Formula Injection) 対策関数 (CWE-1236)
+function sanitizeCSVField(field) {
+    if (field == null) return "";
+    let str = String(field);
+    
+    if (/^[=\+\-@\t\r]/.test(str)) {
+        str = "'" + str;
+    }
+    
+    return `"${str.replace(/"/g, '""')}"`;
+}
+
 function exportCSV() {
     const orderStr = document.getElementById('csv-order').value;
     const order = orderStr.split(',').map(s => s.trim());
@@ -403,17 +491,21 @@ function exportCSV() {
     tx.objectStore('logs').getAll().onsuccess = (e) => {
         const logs = e.target.result;
         let csv = "\uFEFF" + order.join(',') + "\n";
+        
         logs.forEach(log => {
             const row = order.map(col => {
-                if (col === '開始時間') return formatDateTimeExact(log.startTime);
-                if (col === '終了時間') return formatDateTimeExact(log.endTime);
-                if (col === '経過時間') return log.duration;
-                if (col === '分類') return `"${(log.category || '').replace(/"/g, '""')}"`;
-                if (col === '内容') return `"${(log.task || '').replace(/"/g, '""')}"`;
-                return "";
+                let val = "";
+                if (col === '開始時間') val = formatDateTimeExact(log.startTime);
+                else if (col === '終了時間') val = formatDateTimeExact(log.endTime);
+                else if (col === '経過時間') val = log.duration;
+                else if (col === '分類') val = log.category;
+                else if (col === '内容') val = log.task;
+                
+                return sanitizeCSVField(val);
             });
             csv += row.join(',') + "\n";
         });
+        
         const blob = new Blob([csv], { type: 'text/csv' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
@@ -423,12 +515,6 @@ function exportCSV() {
 }
 
 // === ユーティリティ ===
-function escapeHtml(str) {
-    if (!str) return "";
-    return str.replace(/[&<>"']/g, (m) => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    })[m]);
-}
 function loadSettings() {
     updateCategoryUI();
     const showCat = localStorage.getItem('timer_show_category') === 'true';
