@@ -336,9 +336,42 @@ th {
     width: 100%;
 }
 
+/* ====================================================
+   1. 作業履歴テーブル (Dashboardの表) の設定
+   em という単位は「1文字分の幅」を表します
+==================================================== */
+
+/* 分類 (4列目): 15文字分で「…」にする */
+#history-table td:nth-child(4) {
+    max-width: 15em;            /* 15文字分 */
+    white-space: nowrap;        /* 折り返さない */
+    overflow: hidden;           /* はみ出た部分を隠す */
+    text-overflow: ellipsis;    /* 末尾を「…」にする */
+}
+
+/* 内容 (5列目): 23文字分で「…」にする */
 #history-table td:nth-child(5) {
-    max-width: 100px;
+    max-width: 23em;            /* 23文字分 */
+    white-space: nowrap;        
+    overflow: hidden;           
+    text-overflow: ellipsis;    
+}
+
+/* ====================================================
+   2. 設定画面のリスト (Category/Taskの設定欄)
+   ここは制限せず、改行して全文字見せる設定
+==================================================== */
+.tag-list li {
+    max-width: none;
+    white-space: normal;
+    word-break: break-all;
+}
+
+/* ====================================================
+   3. タイマー画面（ウィジェット）の分類プルダウン
+==================================================== */
+.category-input {
+    text-overflow: ellipsis;
     white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis;
 }

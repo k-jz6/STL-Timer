@@ -27,6 +27,7 @@ window.onload = async () => {
         const input = document.getElementById('task-input');
         if (e.target.value) {
             input.value = e.target.value;
+            // 選択後はプルダウンをリセット（空にする）して、連続選択しやすくする
             e.target.value = "";
         }
     });
@@ -40,8 +41,6 @@ window.onload = async () => {
 };
 
 // グローバル公開 (DOMイベント用)
-// ※セキュリティ的にはHTML内のonclick属性よりも、addEventListenerでの実装が推奨されますが、
-// 既存構造を維持しつつ最低限の安全性を確保するため、関数自体は残します。
 window.deleteLog = deleteLog;
 window.deleteCategory = deleteCategory;
 window.deleteTaskHistory = deleteTaskHistory;
@@ -57,10 +56,9 @@ async function openPiP() {
 
     pipWindow = await documentPictureInPicture.requestWindow({ width: 320, height: 80 });
 
-    // スタイルのコピー（セキュリティリスクの低い手法）
+    // スタイルのコピー
     [...document.styleSheets].forEach((styleSheet) => {
         try {
-            // CSSRulesへのアクセスはCORS制限を受ける場合がありますが、同一生成元ならOK
             const cssRules = [...styleSheet.cssRules].map(r => r.cssText).join('');
             const style = document.createElement('style');
             style.textContent = cssRules;
@@ -115,7 +113,6 @@ function toggleTimer() {
 
     if (!startTime) {
         startTime = new Date();
-        // 入力のサニタイズは出力時に行いますが、入力値の最大長チェックなどはHTML側で行っています
         currentTask = input.value;
         currentCategory = catSelect.value;
 
@@ -186,7 +183,6 @@ function updateTaskSelectOptions() {
     tx.objectStore('tasks').getAll().onsuccess = (e) => {
         const tasks = e.target.result;
         
-        // 【セキュリティ修正】 innerHTMLではなくDOM生成を使用 (CWE-79対策)
         const createOptions = (doc) => {
             if (!doc) return;
             const sel = doc.getElementById('task-history-select');
@@ -194,7 +190,6 @@ function updateTaskSelectOptions() {
 
             sel.innerHTML = ''; // クリア
 
-            // 空のオプション (プレースホルダー用)
             const emptyOpt = document.createElement('option');
             emptyOpt.value = "";
             emptyOpt.disabled = true;
@@ -205,8 +200,15 @@ function updateTaskSelectOptions() {
 
             tasks.forEach(t => {
                 const opt = document.createElement('option');
-                opt.value = t.name;      // valueへのセットは安全
-                opt.textContent = t.name; // textContentへのセットはXSS対策として安全
+                opt.value = t.name;      
+                
+                // タスク履歴の表示文字数制限
+                let displayText = t.name;
+                if (displayText.length > 23) {
+                    displayText = displayText.substring(0, 23) + "…";
+                }
+                opt.textContent = displayText;
+                
                 sel.appendChild(opt);
             });
         };
@@ -226,18 +228,14 @@ function updateTaskListUI() {
         
         listEl.innerHTML = ''; // クリア
         
-        // 【セキュリティ修正】 innerHTMLの連結を廃止 (CWE-79対策)
         tasks.forEach(t => {
             const li = document.createElement('li');
-            
-            // テキストノードとして追加（タグは文字として扱われる）
             const textNode = document.createTextNode(t.name + " ");
             li.appendChild(textNode);
 
             const btn = document.createElement('button');
             btn.className = "delete-btn";
             btn.textContent = "×";
-            // イベントリスナーで設定（onclick属性文字列生成よりも安全）
             btn.onclick = () => deleteTaskHistory(t.name);
             
             li.appendChild(btn);
@@ -261,7 +259,7 @@ function saveCategories(cats) {
 }
 function addCategory() {
     const input = document.getElementById('new-category');
-    // 長すぎる入力をカット（念のためJS側でも）
+    // 長すぎる入力をカット（CWE-20対策）
     const val = input.value.trim().substring(0, 50);
     if (val) {
         const cats = getCategories();
@@ -279,14 +277,14 @@ function deleteCategory(val) {
     saveCategories(newCats);
 }
 
+// 【修正箇所】分類プルダウンも表示文字数を制限するよう変更
 function updateCategoryUI() {
     const cats = getCategories();
     
-    // 1. リストの更新
+    // 1. 設定画面リストの更新
     const listEl = document.getElementById('category-list-display');
     if (listEl) {
         listEl.innerHTML = '';
-        // 【セキュリティ修正】 innerHTMLの連結を廃止
         cats.forEach(c => {
             const li = document.createElement('li');
             li.appendChild(document.createTextNode(c + " "));
@@ -301,7 +299,7 @@ function updateCategoryUI() {
         });
     }
 
-    // 2. Selectボックスの更新
+    // 2. Selectボックスの更新（ここを修正）
     const updateSelect = (doc) => {
         if (!doc) return;
         const sel = doc.getElementById('category-select');
@@ -316,8 +314,15 @@ function updateCategoryUI() {
 
             cats.forEach(c => {
                 const opt = document.createElement('option');
-                opt.value = c;
-                opt.textContent = c; // 安全
+                opt.value = c; // 値は完全なまま保持
+                
+                // 表示だけ15文字でカットして「…」をつける
+                let displayText = c;
+                if (displayText.length > 15) {
+                    displayText = displayText.substring(0, 15) + "…";
+                }
+                opt.textContent = displayText; 
+                
                 sel.appendChild(opt);
             });
             sel.value = currentVal;
@@ -368,7 +373,7 @@ function saveLog(start, end, task, category) {
         startTime: start.toISOString(),
         endTime: end.toISOString(),
         duration: durationStr,
-        task: task, // 生データを保存（表示時・出力時に無害化する）
+        task: task, 
         category: category,
         createdAt: new Date().toISOString()
     };
@@ -397,13 +402,12 @@ function loadHistory() {
         
         tbody.innerHTML = ''; // クリア
 
-        // 【セキュリティ修正】 innerHTML廃止、createElementで構築 (CWE-79対策)
         logs.forEach(log => {
             const tr = document.createElement('tr');
 
             const createTd = (text) => {
                 const td = document.createElement('td');
-                td.textContent = text || ""; // textContentは安全
+                td.textContent = text || "";
                 return td;
             };
 
@@ -413,7 +417,6 @@ function loadHistory() {
             tr.appendChild(createTd(log.category));
             tr.appendChild(createTd(log.task));
 
-            // 操作列（ボタン）
             const tdAction = document.createElement('td');
             const btn = document.createElement('button');
             btn.className = "btn-secondary";
@@ -450,8 +453,6 @@ function formatDateTimeExact(iso) {
 
 // === 出力 ===
 function downloadJSON() {
-    // JSONはそのままダウンロードしてもブラウザが実行するわけではないため、
-    // XSSリスクは低いが、内容のサニタイズは行わず生データを出力するのが一般的。
     const tx = db.transaction(['logs', 'tasks'], 'readonly');
     Promise.all([
         new Promise(r => tx.objectStore('logs').getAll().onsuccess = e => r(e.target.result)),
@@ -471,18 +472,15 @@ function downloadJSON() {
     });
 }
 
-// 【セキュリティ修正】 CSV Injection (Formula Injection) 対策関数
+// CSV Injection (Formula Injection) 対策関数 (CWE-1236)
 function sanitizeCSVField(field) {
     if (field == null) return "";
     let str = String(field);
     
-    // Excel等が数式として認識する文字で始まる場合、シングルクォートを付与して文字列化する (CWE-1236)
-    // 対象: =, +, -, @, Tab(0x09), CR(0x0D)
     if (/^[=\+\-@\t\r]/.test(str)) {
         str = "'" + str;
     }
     
-    // ダブルクォートをエスケープ (" -> "")
     return `"${str.replace(/"/g, '""')}"`;
 }
 
@@ -492,7 +490,6 @@ function exportCSV() {
     const tx = db.transaction(['logs'], 'readonly');
     tx.objectStore('logs').getAll().onsuccess = (e) => {
         const logs = e.target.result;
-        // BOM付与
         let csv = "\uFEFF" + order.join(',') + "\n";
         
         logs.forEach(log => {
@@ -504,7 +501,6 @@ function exportCSV() {
                 else if (col === '分類') val = log.category;
                 else if (col === '内容') val = log.task;
                 
-                // サニタイズ関数を通す
                 return sanitizeCSVField(val);
             });
             csv += row.join(',') + "\n";
@@ -519,17 +515,6 @@ function exportCSV() {
 }
 
 // === ユーティリティ ===
-// escapeHtml は innerHTML を廃止したため不要になりますが、念のため残すなら以下。
-// 今回は textContent 化したため、コード内では使用していません。
-/*
-function escapeHtml(str) {
-    if (!str) return "";
-    return str.replace(/[&<>"']/g, (m) => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    })[m]);
-}
-*/
-
 function loadSettings() {
     updateCategoryUI();
     const showCat = localStorage.getItem('timer_show_category') === 'true';
