@@ -1,14 +1,19 @@
 {
-    "name": "Stealth Work Timer",
-    "short_name": "Timer",
+    "name": "Stealth Timer",
+    "short_name": "STL-Timer",
     "start_url": "./index.html",
     "display": "standalone",
     "background_color": "#ffffff",
     "theme_color": "#0056b3",
     "icons": [
         {
-            "src": "https://via.placeholder.com/192.png?text=Icon",
+            "src": "./icon-192.png",
             "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "./icon-512.png",
+            "sizes": "512x512",
             "type": "image/png"
         }
     ]
