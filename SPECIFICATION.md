@@ -1,17 +1,11 @@
-# STL-Timer
-GitHubのリポジトリ（`README.md` または `SPECIFICATION.md`）としてそのまま保存できる形式で、仕様書を作成しました。
-
-これまでの修正経緯（セキュリティ対策やUI調整）を「なぜそうしたか」という理由と共に記述しています。これを保存しておけば、半年後に見返しても「ああ、ここはXSS対策でこう書いているんだった」と思い出せるはずです。
-
----
-
-# Stealth Work Timer (STL-Timer) アプリケーション仕様書
+# Stealth Timer (STL-Timer) アプリケーション仕様書
 
 ## 1. 概要
 
-**Stealth Work Timer** は、ブラウザ上で動作する作業時間計測アプリケーションです。
+**Stealth Timer** は、ブラウザ上で動作する作業時間計測アプリケーションです。
 サーバーサイドを持たず、すべてのデータを利用者のブラウザ内（IndexedDB/LocalStorage）に保存する「ローカル完結型」の設計により、プライバシーと手軽さを重視しています。
 また、Picture-in-Picture (PiP) APIを利用することで、他の作業ウィンドウの最前面に小さなタイマーウィジェットを表示し続けることが可能です。
+PWA (Progressive Web Apps) に完全対応しており、PCやスマートフォンへインストールしてオフラインで使用することができます。
 
 ## 2. システム構成・技術スタック
 
@@ -23,15 +17,32 @@ GitHubのリポジトリ（`README.md` または `SPECIFICATION.md`）として�
 * **LocalStorage:** アプリ設定（カテゴリリスト、表示設定など）
 
 
+* **PWA:** Service Worker (Offline Caching), Web App Manifest
 * **API:** Document Picture-in-Picture API (PiP機能)
 * **Deployment:** Static Web Hosting (GitHub Pages等での公開を想定)
 
 ### 2.2 ファイル構成
 
-* `index.html`: アプリケーションのメイン構造。ダッシュボードとウィジェット（PiP用）を含む。
+* `index.html`: アプリケーションのメイン構造。Service Workerの登録処理、ダッシュボード、ウィジェット（PiP用）を含む。
 * `style.css`: 全体のデザイン定義。PiP時のレイアウト調整も含む。
 * `app.js`: アプリケーションロジック、DB操作、イベントハンドリング。
-* `manifest.json`: PWA (Progressive Web Apps) 対応用の設定ファイル。
+* `sw.js`: Service Worker。オフライン動作のためのファイルキャッシュ制御を行う。
+* `manifest.json`: PWAとしてのインストール設定（アプリ名、アイコン、起動モードなど）を定義。
+* `icon-192.png`: PWA用アプリアイコン (192x192px)。
+* `icon-512.png`: PWA用アプリアイコン (512x512px)。
+
+### 2.3 PWA (Progressive Web Apps) 仕様
+
+* **キャッシュ戦略 (Cache-First):**
+* `sw.js` により、アプリ構成ファイル（HTML, CSS, JS, 画像）をブラウザにキャッシュします。
+* ネットワーク接続がない状態でもアプリを起動・利用可能です。
+
+
+* **インストール機能:**
+* `manifest.json` により、PCのデスクトップやスマートフォンのホーム画面にアイコンを追加可能です。
+* `display: "standalone"` 設定により、ブラウザのツールバー（URL欄など）を非表示にし、ネイティブアプリのような外観で動作します。
+
+
 
 ---
 
@@ -137,7 +148,15 @@ DB名: `WorkTimerDB` (Version: 3)
 
 
 
-### 6.2 ブラウザ互換性
+### 6.2 アプリ更新時の手順 (PWA)
+
+* **キャッシュの更新:**
+* `app.js` や `style.css` などのコードを修正してサーバーにアップロードする際は、必ず **`sw.js` 内の `CACHE_NAME` (例: 'timer-app-v1') の数字を更新してください**（例: v1 -> v2）。
+* これを変更しないと、ユーザーのブラウザには古いキャッシュ（修正前のファイル）が残り続け、新しい機能が反映されません。
+
+
+
+### 6.3 ブラウザ互換性
 
 * **Picture-in-Picture API:**
 * 比較的新しいAPIを使用しています。Chrome, Edge等のChromium系ブラウザで動作します。FirefoxやSafariではPiPウィンドウが開かない（またはフォールバック動作が必要）場合があります。
@@ -150,4 +169,4 @@ DB名: `WorkTimerDB` (Version: 3)
 
 ---
 
-*Document Created: 2025-12-31*
+*Document Updated: 2025-12-31*
